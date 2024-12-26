@@ -6,73 +6,149 @@ import (
 	"time"
 )
 
-const instructionListSize = 100
-const cacheSize = 10
-
 type Instruction struct {
-	id     int
-	rep    int
-	status bool
+	id       int
+	rep      int
+	lastTime time.Time
 }
 
-type CacheLine struct {
-	instruction *Instruction
+type Cache struct {
+	lines       []*Instruction
+	cacheHits   int
+	cacheMisses int
 }
 
-func roundRobin(cache *[cacheSize]CacheLine, quantum int) {
-	completed := 0
+func NewCache(size int) *Cache {
+	return &Cache{lines: make([]*Instruction, size)}
+}
 
-	for completed < len(*cache) {
-		for j := 0; j < len(*cache); j++ {
-			if cache[j].instruction != nil {
-				instruction := cache[j].instruction
-
-				if instruction.rep > 0 && instruction.status {
-					fmt.Printf("Executing process %d for %d time units, next rp %d\n", instruction.id, quantum, instruction.rep)
-
-					if instruction.rep <= quantum {
-						fmt.Printf("Process %d finished execution\n", instruction.id)
-						instruction.status = false
-						completed++
-					} else {
-						instruction.rep -= quantum
-					}
-				}
-			}
+func (c *Cache) Access(instruction *Instruction, algorithm string) {
+	for _, line := range c.lines {
+		if line != nil && line.id == instruction.id {
+			c.cacheHits++
+			instruction.rep--
+			instruction.lastTime = time.Now()
+			return
 		}
 	}
 
-	time.Sleep(1 * time.Second)
-}
-
-func generateProcesses(list *[instructionListSize]Instruction) {
-	for i := 0; i < len(list); i++ {
-		list[i].id = i
-		list[i].rep = rand.Intn(9) + 2
-		list[i].status = true
-	}
-}
-
-func generateCache(cache *[cacheSize]CacheLine, instructions *[instructionListSize]Instruction) {
-	for i := 0; i < len(*cache); i++ {
-		for {
-			instruction := &(*instructions)[rand.Intn(instructionListSize)]
-
-			if instruction.status {
-				cache[i].instruction = instruction
-				break
-			}
+	c.cacheMisses++
+	emptyIndex := -1
+	for i, line := range c.lines {
+		if line == nil {
+			emptyIndex = i
+			break
 		}
 	}
+
+	if emptyIndex != -1 {
+		c.lines[emptyIndex] = instruction
+		instruction.rep--
+		instruction.lastTime = time.Now()
+	} else {
+		switch algorithm {
+		case "FIFO":
+			c.FIFO(instruction)
+		case "LRU":
+			c.LRU(instruction)
+		case "Random":
+			c.Random(instruction)
+		case "LFU":
+			c.LFU(instruction)
+		default:
+			fmt.Println("Algoritmo desconhecido:", algorithm)
+		}
+	}
+}
+
+func (c *Cache) FIFO(instruction *Instruction) {
+	c.lines = append(c.lines[1:], instruction)
+	instruction.rep--
+	instruction.lastTime = time.Now()
+}
+
+func (c *Cache) LRU(instruction *Instruction) {
+	oldestIndex := 0
+	oldestTime := c.lines[0].lastTime
+
+	for i, line := range c.lines {
+		if line.lastTime.Before(oldestTime) {
+			oldestIndex = i
+			oldestTime = line.lastTime
+		}
+	}
+
+	c.lines[oldestIndex] = instruction
+	instruction.rep--
+	instruction.lastTime = time.Now()
+}
+
+func (c *Cache) Random(instruction *Instruction) {
+	randomIndex := rand.Intn(len(c.lines))
+	c.lines[randomIndex] = instruction
+	instruction.rep--
+	instruction.lastTime = time.Now()
+}
+
+func (c *Cache) LFU(instruction *Instruction) {
+	leastFrequentIndex := 0
+	leastRep := c.lines[0].rep
+
+	for i, line := range c.lines {
+		if line.rep < leastRep {
+			leastFrequentIndex = i
+			leastRep = line.rep
+		}
+	}
+
+	c.lines[leastFrequentIndex] = instruction
+	instruction.rep--
+	instruction.lastTime = time.Now()
+}
+
+func (c *Cache) Efficiency() float64 {
+	totalAccesses := c.cacheHits + c.cacheMisses
+	if totalAccesses == 0 {
+		return 0
+	}
+	return float64(c.cacheHits) / float64(totalAccesses) * 100
+}
+
+func generateInstructions(size int) []*Instruction {
+	instructions := make([]*Instruction, size)
+	for i := 0; i < size; i++ {
+		instructions[i] = &Instruction{
+			id:       i,
+			rep:      rand.Intn(9) + 2,
+			lastTime: time.Now(),
+		}
+	}
+	return instructions
+}
+
+func simulate(cacheSize, instructionCount int, algorithm string) {
+	rand.Seed(time.Now().UnixNano())
+
+	instructions := generateInstructions(instructionCount)
+	cache := NewCache(cacheSize)
+
+	for _, instruction := range instructions {
+		cache.Access(instruction, algorithm)
+	}
+
+	fmt.Printf("Resultados para o algoritmo %s:\n", algorithm)
+	fmt.Printf("Cache Hits: %d\n", cache.cacheHits)
+	fmt.Printf("Cache Misses: %d\n", cache.cacheMisses)
+	fmt.Printf("Eficiência: %.2f%%\n", cache.Efficiency())
 }
 
 func main() {
-	var instructions [instructionListSize]Instruction
-	var cache [cacheSize]CacheLine
-	generateProcesses(&instructions)
-	generateCache(&cache, &instructions)
+	cacheSize := 10
+	instructionCount := 100
+	algorithms := []string{"FIFO", "LRU", "Random", "LFU"}
 
-	quantum := 3
-
-	roundRobin(&cache, quantum)
+	for _, algorithm := range algorithms {
+		fmt.Println("--------------------------------")
+		simulate(cacheSize, instructionCount, algorithm)
+	}
 }
