@@ -5,7 +5,10 @@ import (
 	"math/rand"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -104,7 +107,7 @@ func Random(c *Cache) int {
 	return rand.Intn(len(c.lines))
 }
 
-func simulate(cacheSize int, instructionCount int, algorithm string) {
+func simulate(cacheSize int, instructionCount int, algorithm string) *Cache {
 	instructions := generateInstructions(instructionCount)
 	cache := NewCache(cacheSize)
 
@@ -153,10 +156,39 @@ func simulate(cacheSize int, instructionCount int, algorithm string) {
 		}
 	}
 
-	fmt.Printf("Resultados para o algoritmo %s:\n", algorithm)
-	fmt.Printf("Cache Hits: %d\n", cache.cacheHits)
-	fmt.Printf("Cache Misses: %d\n", cache.cacheMisses)
-	fmt.Printf("Eficiência: %.2f%%\n", cache.Efficiency())
+	return cache
+}
+
+func createCacheDisplay(c *Cache) *fyne.Container {
+	display := container.NewVBox()
+	for _, line := range c.lines {
+		display.Add(widget.NewLabel(fmt.Sprintf("ID: %d, Rep: %d", line.id, line.rep)))
+	}
+	return display
+}
+
+func createStatsDisplay(c *Cache) *fyne.Container {
+	stats := container.NewVBox(
+		widget.NewLabel(fmt.Sprintf("Cache Hits: %d", c.cacheHits)),
+		widget.NewLabel(fmt.Sprintf("Cache Misses: %d", c.cacheMisses)),
+		widget.NewLabel(fmt.Sprintf("Eficiência: %.2f%%", c.Efficiency())),
+	)
+	return stats
+}
+
+func runAlgorithm(algorithm string, cacheSize, instructionCount int, window fyne.Window) {
+	cache := simulate(cacheSize, instructionCount, algorithm)
+
+	cacheDisplay := createCacheDisplay(cache)
+	statsDisplay := createStatsDisplay(cache)
+
+	content := container.NewVBox(
+		widget.NewLabel(fmt.Sprintf("Algoritmo: %s", algorithm)),
+		cacheDisplay,
+		statsDisplay,
+	)
+
+	window.SetContent(content)
 }
 
 func main() {
@@ -164,14 +196,22 @@ func main() {
 	instructionCount := 100
 	algorithms := []string{"FIFO", "LFU", "LRU", "Random"}
 
+	app := app.New()
+	window := app.NewWindow("Cache Simulation")
+
+	buttonsArea := container.NewVBox()
+
 	for _, algorithm := range algorithms {
-		fmt.Println("--------------------------------")
-		simulate(cacheSize, instructionCount, algorithm)
+		btn := widget.NewButton(algorithm, func(algorithm string) func() {
+			return func() {
+				runAlgorithm(algorithm, cacheSize, instructionCount, window)
+			}
+		}(algorithm))
+		buttonsArea.Add(btn)
 	}
 
-	a := app.New()
-	w := a.NewWindow("Hello World")
+	content := container.New(layout.NewHBoxLayout(), buttonsArea)
 
-	w.SetContent(widget.NewLabel("Hello World!"))
-	w.ShowAndRun()
+	window.SetContent(content)
+	window.ShowAndRun()
 }
