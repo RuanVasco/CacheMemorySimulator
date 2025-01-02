@@ -149,7 +149,7 @@ func simulateStep(cache *Cache, instructions []*Instruction, algorithm string) b
 	return instructionsLeft
 }
 
-func runAlgorithmStep(algorithm string, cache *Cache, instructions []*Instruction, statsArea, cacheArea, instructionsArea *fyne.Container, manualButton *widget.Button) {
+func runAlgorithmStep(algorithm string, cache *Cache, instructions []*Instruction, statsArea, cacheArea, instructionsArea *fyne.Container, manualButton *widget.Button, automaticButton *widget.Button) bool {
 	instructionsLeft := simulateStep(cache, instructions, algorithm)
 
 	statsArea.Objects = []fyne.CanvasObject{
@@ -184,7 +184,11 @@ func runAlgorithmStep(algorithm string, cache *Cache, instructions []*Instructio
 		statsArea.Add(widget.NewLabel("Simulação concluída!"))
 		statsArea.Refresh()
 		manualButton.Disable()
+		automaticButton.Disable()
+		return false
 	}
+
+	return true
 }
 
 func main() {
@@ -204,6 +208,7 @@ func main() {
 	var cache *Cache
 	var instructions []*Instruction
 	var manualButton *widget.Button
+	var automaticButton *widget.Button
 
 	buttonsArea := container.NewVBox()
 	for _, algorithm := range algorithms {
@@ -212,6 +217,7 @@ func main() {
 			currentAlgorithm = alg
 			cache = NewCache(cacheSize)
 			manualButton.Enable()
+			automaticButton.Enable()
 			instructions = generateInstructions(instructionCount)
 			statsArea.Objects = nil
 			cacheArea.Objects = nil
@@ -220,9 +226,24 @@ func main() {
 		buttonsArea.Add(btn)
 	}
 
-	manualButton = widget.NewButton("Manual Clock", func() {
+	manualButton = widget.NewButton("Round Manual", func() {
 		if currentAlgorithm != "" && cache != nil && instructions != nil {
-			runAlgorithmStep(currentAlgorithm, cache, instructions, statsArea, cacheArea, instructionsArea, manualButton)
+			runAlgorithmStep(currentAlgorithm, cache, instructions, statsArea, cacheArea, instructionsArea, manualButton, automaticButton)
+		} else {
+			statsArea.Objects = []fyne.CanvasObject{
+				widget.NewLabel("Selecione um algoritmo primeiro!"),
+			}
+			statsArea.Refresh()
+		}
+	})
+
+	automaticButton = widget.NewButton("Automático", func() {
+		if currentAlgorithm != "" && cache != nil && instructions != nil {
+			var instructionsLeft = true
+
+			for instructionsLeft {
+				instructionsLeft = runAlgorithmStep(currentAlgorithm, cache, instructions, statsArea, cacheArea, instructionsArea, manualButton, automaticButton)
+			}
 		} else {
 			statsArea.Objects = []fyne.CanvasObject{
 				widget.NewLabel("Selecione um algoritmo primeiro!"),
@@ -234,7 +255,10 @@ func main() {
 	mainContent := container.New(layout.NewHBoxLayout(),
 		buttonsArea,
 		container.NewVBox(
-			manualButton,
+			container.NewHBox(
+				automaticButton,
+				manualButton,
+			),
 			widget.NewLabel("Estatísticas:"),
 			statsArea,
 			container.NewHBox(
