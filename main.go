@@ -76,17 +76,17 @@ func FIFO(c *Cache) int {
 }
 
 func LFU(c *Cache) int {
-	leastFrequentIndex := -1
-	leastFrequency := int64(^uint(0) >> 1)
+	lfuIndex := -1
+	minFrequency := int(^uint(0) >> 1)
 
 	for i, line := range c.lines {
-		if line != nil && line.time > 0 && line.time < leastFrequency {
-			leastFrequency = line.time
-			leastFrequentIndex = i
+		if line != nil && line.rep < minFrequency {
+			minFrequency = line.rep
+			lfuIndex = i
 		}
 	}
 
-	return leastFrequentIndex
+	return lfuIndex
 }
 
 func LRU(c *Cache) int {
